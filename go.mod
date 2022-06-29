@@ -4,14 +4,13 @@ go 1.18
 
 require (
 	github.com/google/uuid v1.3.0
-	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
 	github.com/michaelquigley/pfxlog v0.6.9
 	github.com/openziti/foundation v0.17.31
 	github.com/orcaman/concurrent-map/v2 v2.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	google.golang.org/protobuf v1.28.0
 )
 
