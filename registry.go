@@ -19,7 +19,7 @@ package metrics
 import (
 	"fmt"
 	"github.com/michaelquigley/pfxlog"
-	"github.com/openziti/foundation/metrics/metrics_pb"
+	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/pkg/errors"
 	"github.com/rcrowley/go-metrics"

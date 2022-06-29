@@ -17,7 +17,7 @@
 package metrics
 
 import (
-	"github.com/openziti/foundation/metrics/metrics_pb"
+	"github.com/openziti/metrics/metrics_pb"
 	"github.com/rcrowley/go-metrics"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"

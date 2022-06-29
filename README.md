@@ -1,8 +1,11 @@
-# Ziti Foundation Library
+# Ziti Metrics Library
 
-This is a library containing core infrastructure for Ziti.
+This is a metrics library which is built on, and extends the
+[go-metrics](https://github.com/rcrowley/go-metrics) library.
 
-This is a step towards open-sourcing the entire Ziti ecosystem. We're in the process of working through preparing to alter our internal build and testing systems to accomodate the migration to GitHub.
+It extends it by adding the following:
 
-This is a work in progress.
-
+1. Support for interval counters. These collect event counts related to a given identifier, over a given interval. The interval buckets are flushed regularly. These are good for things like collecting
+   usage data.
+1. A Dispose method is defined on metrics, so they can be cleaned up, for metrics tied to transient entities.
+1. Reference counted metrics

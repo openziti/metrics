@@ -2,11 +2,17 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/openziti/foundation/metrics/metrics_pb"
+	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"reflect"
 	"time"
 )
+
+// Handler represents a sink for metric events
+type Handler interface {
+	// AcceptMetrics is called when new metrics become available
+	AcceptMetrics(message *metrics_pb.MetricsMessage)
+}
 
 // UsageRegistry extends registry to allow collecting usage metrics
 type UsageRegistry interface {
