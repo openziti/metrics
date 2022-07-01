@@ -10,7 +10,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	google.golang.org/protobuf v1.28.0
 )
 
