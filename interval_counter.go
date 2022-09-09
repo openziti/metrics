@@ -17,13 +17,8 @@
 package metrics
 
 import (
-	"github.com/michaelquigley/pfxlog"
-	"github.com/sirupsen/logrus"
-	"reflect"
 	"time"
 )
-
-// TODO: See if we can make interval processing use a single goroutine
 
 // IntervalCounter allows tracking counters which are bucketized by some interval
 type IntervalCounter interface {
@@ -37,21 +32,15 @@ type intervalCounterReporter interface {
 
 func newIntervalCounter(name string,
 	intervalSize time.Duration,
-	reporter intervalCounterReporter,
-	flushFreq time.Duration,
 	ageThreshold time.Duration,
-	disposeF func(),
-	closeNotify <-chan struct{}) IntervalCounter {
+	eventChan chan func(),
+	reporter intervalCounterReporter,
+	disposeF func()) *intervalCounterImpl {
 
 	currentInterval := time.Now().Truncate(intervalSize).UTC().Unix()
 	currentCounters := make(map[string]uint64)
 	intervalMap := make(map[int64]map[string]uint64)
 	intervalMap[currentInterval] = currentCounters
-
-	var ticker *time.Ticker
-	if flushFreq > 0 {
-		ticker = time.NewTicker(flushFreq)
-	}
 
 	intervalCounter := &intervalCounterImpl{
 		name:            name,
@@ -59,22 +48,13 @@ func newIntervalCounter(name string,
 		currentInterval: currentInterval,
 		currentValues:   currentCounters,
 		intervalMap:     intervalMap,
-		eventChan:       make(chan interface{}, 10),
-		reporter:        reporter,
-		ticker:          ticker,
 		ageThreshold:    ageThreshold,
+		eventChan:       eventChan,
+		reporter:        reporter,
 		dispose:         disposeF,
-		closeNotify:     closeNotify,
 	}
 
-	go intervalCounter.run()
 	return intervalCounter
-}
-
-type counterEvent struct {
-	intervalId string
-	time       time.Time
-	value      uint64
 }
 
 type intervalCounterImpl struct {
@@ -83,74 +63,26 @@ type intervalCounterImpl struct {
 	currentInterval int64
 	currentValues   map[string]uint64
 	intervalMap     map[int64]map[string]uint64
-	eventChan       chan interface{}
+	eventChan       chan func()
 	reporter        intervalCounterReporter
-	ticker          *time.Ticker
 	ageThreshold    time.Duration
 	dispose         func()
-	closeNotify     <-chan struct{}
 }
 
 func (intervalCounter *intervalCounterImpl) Update(intervalId string, time time.Time, value uint64) {
-	if value > 0 {
-		event := &counterEvent{intervalId, time, value}
+	if value == 0 {
+		return
+	}
 
-		// Select on this to make sure we don't block? If blocked, log to disk instead? Map updates should be
-		// very fast, not sure that's needed
-		intervalCounter.eventChan <- event
+	intervalCounter.eventChan <- func() {
+		interval := time.Truncate(intervalCounter.intervalSize).UTC().Unix()
+		valueMap := intervalCounter.getValueMapForInterval(interval)
+		valueMap[intervalId] += value
 	}
 }
 
 func (intervalCounter *intervalCounterImpl) Dispose() {
 	intervalCounter.dispose()
-}
-
-func (intervalCounter *intervalCounterImpl) report() {
-	intervalCounter.eventChan <- time.Now()
-}
-
-func (intervalCounter *intervalCounterImpl) flush() {
-	intervalCounter.eventChan <- time.Time{}
-}
-
-func (intervalCounter *intervalCounterImpl) run() {
-	defer logrus.Debug("interval counter shutting down")
-
-	var tickerC <-chan time.Time
-	if intervalCounter.ticker != nil {
-		tickerC = intervalCounter.ticker.C
-	}
-
-	for {
-		select {
-		case <-intervalCounter.closeNotify:
-			if intervalCounter.ticker != nil {
-				intervalCounter.ticker.Stop()
-			}
-			intervalCounter.currentValues = nil
-			intervalCounter.intervalMap = nil
-			return
-
-		case <-tickerC:
-			intervalCounter.flushIntervals()
-
-		case i := <-intervalCounter.eventChan:
-			switch event := i.(type) {
-			case *counterEvent:
-				interval := event.time.Truncate(intervalCounter.intervalSize).UTC().Unix()
-				valueMap := intervalCounter.getValueMapForInterval(interval)
-				valueMap[event.intervalId] += event.value
-				break
-			case time.Time:
-				if event.IsZero() {
-					intervalCounter.currentInterval++
-				}
-				intervalCounter.flushIntervals()
-			default:
-				pfxlog.Logger().Errorf("unhandled IntervalCounter event type '%v'", reflect.TypeOf(event).Name())
-			}
-		}
-	}
 }
 
 func (intervalCounter *intervalCounterImpl) getValueMapForInterval(interval int64) map[string]uint64 {

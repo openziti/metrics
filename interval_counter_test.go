@@ -83,16 +83,37 @@ func TestTrackerNonDuplicate(t *testing.T) {
 
 	closeNotify := make(chan struct{})
 	defer close(closeNotify)
-	reporter := &collectingReporter{intervalChan: make(chan *intervalEvent)}
+	reporter := &collectingReporter{intervalChan: make(chan *intervalEvent, 16)}
+
+	eventChan := make(chan func(), 4)
+	go func() {
+		for {
+			select {
+			case event := <-eventChan:
+				event()
+			case <-closeNotify:
+				return
+			}
+		}
+	}()
 
 	intervalCounter := newIntervalCounter(
-		"usage", time.Minute, reporter, time.Duration(0), time.Duration(0), func() {}, closeNotify).(*intervalCounterImpl)
+		"usage", time.Minute, time.Duration(0), eventChan, reporter, func() {})
+
+	report := func() {
+		done := make(chan struct{})
+		eventChan <- func() {
+			intervalCounter.flushIntervals()
+			close(done)
+		}
+		<-done
+	}
 
 	currentMinute := time.Now().Truncate(time.Minute)
 
 	intervalID1 := uuid.New().String()
 	intervalCounter.Update(intervalID1, currentMinute.Add(time.Second*5), 11111)
-	intervalCounter.report()
+	report()
 
 	intervals := reporter.GetNextIntervals(1, time.Second)
 
@@ -104,7 +125,7 @@ func TestTrackerNonDuplicate(t *testing.T) {
 	assert.Equal(uint64(11111), interval.values[intervalID1])
 
 	// verify that we don't see any new events
-	intervalCounter.report()
+	report()
 
 	intervals = reporter.GetNextIntervals(1, time.Millisecond*50)
 	assert.Equal(0, len(intervals))
@@ -136,7 +157,7 @@ func TestTrackerNonDuplicate(t *testing.T) {
 	// interval N-3
 	intervalCounter.Update(intervalID2, currentMinute.Add(-time.Second*121), 567)
 
-	intervalCounter.report()
+	report()
 
 	intervals = reporter.GetNextIntervals(5, time.Millisecond*50)
 	fmt.Printf("Current minute: %v\n", currentMinute.UTC().Unix())

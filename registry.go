@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rcrowley/go-metrics"
 	"reflect"
+	"sync"
 )
 
 // Metric is the base functionality for all metrics types
@@ -58,6 +59,7 @@ type registryImpl struct {
 	sourceId  string
 	tags      map[string]string
 	metricMap cmap.ConcurrentMap[any]
+	lock      sync.Mutex
 }
 
 func (registry *registryImpl) dispose(name string) {
@@ -278,6 +280,8 @@ func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
 		case *timerImpl:
 			builder.addTimer(name, metric.Snapshot())
 		case *intervalCounterImpl:
+		// ignore, handled below
+		case *usageCounterImpl:
 			// ignore, handled below
 		default:
 			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
