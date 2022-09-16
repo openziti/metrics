@@ -17,6 +17,7 @@
 package metrics
 
 import (
+	"github.com/google/uuid"
 	"github.com/openziti/metrics/metrics_pb"
 	"github.com/rcrowley/go-metrics"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -26,9 +27,12 @@ import (
 type messageBuilder metrics_pb.MetricsMessage
 
 func newMessageBuilder(sourceId string, tags map[string]string) *messageBuilder {
-	builder := &messageBuilder{Timestamp: timestamppb.New(time.Now())}
-	builder.SourceId = sourceId
-	builder.Tags = tags
+	builder := &messageBuilder{
+		EventId:   uuid.NewString(),
+		Timestamp: timestamppb.New(time.Now()),
+		SourceId:  sourceId,
+		Tags:      tags,
+	}
 
 	return builder
 }

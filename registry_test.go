@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"github.com/openziti/metrics/metrics_pb"
-	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -15,16 +14,12 @@ type testData struct {
 }
 
 func setUpTest(t *testing.T) *testData {
+	closeNotify := make(chan struct{})
 	td := &testData{
-		closeNotify: make(chan struct{}),
-		registry: &usageRegistryImpl{
-			registryImpl: registryImpl{
-				sourceId:  t.Name(),
-				metricMap: cmap.New[any](),
-			},
-			intervalBucketChan: make(chan *bucketEvent, 1),
-		}}
-	td.registry.closeNotify = td.closeNotify
+		closeNotify: closeNotify,
+		registry:    NewUsageRegistry(t.Name(), nil, closeNotify).(*usageRegistryImpl),
+	}
+	td.registry.StartReporting(nil, time.Hour, 10)
 	return td
 }
 

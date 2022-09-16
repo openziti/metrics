@@ -78,44 +78,46 @@ func (registry *registryImpl) SourceId() string {
 	return registry.sourceId
 }
 
-func (registry *registryImpl) Gauge(name string) Gauge {
-	metric, present := registry.metricMap.Get(name)
-	if present {
-		gauge, ok := metric.(Gauge)
-		if !ok {
-			panic(fmt.Errorf("metric '%v' already exists and is not a gauge. It is a %v", name, reflect.TypeOf(metric).Name()))
+func getOrCreateMetric[T Metric](registry *registryImpl, name string, newMetric func() T) T {
+	var result T
+	for {
+		metric, present := registry.metricMap.Get(name)
+		if present {
+			var ok bool
+			result, ok = metric.(T)
+			if !ok {
+				panic(fmt.Errorf("metric '%v' already exists and is not a %T. It is a %T", name, new(T), metric))
+			}
+			return result
 		}
-		return gauge
-	}
 
-	gauge := &gaugeImpl{
-		Gauge: metrics.NewGauge(),
-		dispose: func() {
-			registry.dispose(name)
-		},
+		result = newMetric()
+		if registry.metricMap.SetIfAbsent(name, result) {
+			return result
+		}
 	}
-	registry.metricMap.Set(name, gauge)
-	return gauge
+}
+
+func (registry *registryImpl) Gauge(name string) Gauge {
+	return getOrCreateMetric(registry, name, func() Gauge {
+		return &gaugeImpl{
+			Gauge: metrics.NewGauge(),
+			dispose: func() {
+				registry.dispose(name)
+			},
+		}
+	})
 }
 
 func (registry *registryImpl) FuncGauge(name string, f func() int64) Gauge {
-	metric, present := registry.metricMap.Get(name)
-	if present {
-		gauge, ok := metric.(Gauge)
-		if !ok {
-			panic(fmt.Errorf("metric '%v' already exists and is not a gauge. It is a %v", name, reflect.TypeOf(metric).Name()))
+	return getOrCreateMetric(registry, name, func() Gauge {
+		return &gaugeImpl{
+			Gauge: metrics.NewFunctionalGauge(f),
+			dispose: func() {
+				registry.dispose(name)
+			},
 		}
-		return gauge
-	}
-
-	gauge := &gaugeImpl{
-		Gauge: metrics.NewFunctionalGauge(f),
-		dispose: func() {
-			registry.dispose(name)
-		},
-	}
-	registry.metricMap.Set(name, gauge)
-	return gauge
+	})
 }
 
 func (registry *registryImpl) newMeter(name string) *meterImpl {
@@ -189,23 +191,14 @@ func (registry *registryImpl) disposeRefCounted(metric refCounted) {
 }
 
 func (registry *registryImpl) Timer(name string) Timer {
-	metric, present := registry.metricMap.Get(name)
-	if present {
-		timer, ok := metric.(Timer)
-		if !ok {
-			panic(fmt.Errorf("metric '%v' already exists and is not a timer. It is a %v", name, reflect.TypeOf(metric).Name()))
+	return getOrCreateMetric(registry, name, func() Timer {
+		return &timerImpl{
+			Timer: metrics.NewTimer(),
+			dispose: func() {
+				registry.dispose(name)
+			},
 		}
-		return timer
-	}
-
-	timer := &timerImpl{
-		Timer: metrics.NewTimer(),
-		dispose: func() {
-			registry.dispose(name)
-		},
-	}
-	registry.metricMap.Set(name, timer)
-	return timer
+	})
 }
 
 func (registry *registryImpl) EachMetric(visitor func(name string, metric Metric)) {
@@ -278,6 +271,8 @@ func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
 		case *timerImpl:
 			builder.addTimer(name, metric.Snapshot())
 		case *intervalCounterImpl:
+		// ignore, handled below
+		case *usageCounterImpl:
 			// ignore, handled below
 		default:
 			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
