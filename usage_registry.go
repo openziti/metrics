@@ -6,6 +6,7 @@ import (
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"reflect"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -60,6 +61,7 @@ type usageRegistryImpl struct {
 	intervalBuckets []*bucketEvent
 	usageBuckets    []*metrics_pb.MetricsMessage_UsageCounter
 	closeNotify     <-chan struct{}
+	lock            sync.Mutex
 }
 
 func (self *usageRegistryImpl) StartReporting(eventSink Handler, reportInterval time.Duration, msgQueueSize int) {
@@ -70,6 +72,9 @@ func (self *usageRegistryImpl) StartReporting(eventSink Handler, reportInterval 
 
 // IntervalCounter creates an IntervalCounter
 func (self *usageRegistryImpl) IntervalCounter(name string, intervalSize time.Duration) IntervalCounter {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
 	metric, present := self.metricMap.Get(name)
 	if present {
 		intervalCounter, ok := metric.(IntervalCounter)
