@@ -136,7 +136,7 @@ func (self *usageRegistryImpl) Poll() *metrics_pb.MetricsMessage {
 	self.usageBuckets = nil
 
 	sort.Slice(builder.UsageCounters, func(i, j int) bool {
-		return builder.UsageCounters[i].IntervalStartUTC < builder.UsageCounters[i].IntervalStartUTC
+		return builder.UsageCounters[i].IntervalStartUTC < builder.UsageCounters[j].IntervalStartUTC
 	})
 
 	return (*metrics_pb.MetricsMessage)(builder)

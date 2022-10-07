@@ -44,7 +44,7 @@ func (builder *messageBuilder) addIntValue(name string, value int64) {
 	builder.IntValues[name] = value
 }
 
-func (builder *messageBuilder) addCounter(name string, metric metrics.Counter) {
+func (builder *messageBuilder) AddCounter(name string, metric metrics.Counter) {
 	builder.addIntValue(name, metric.Count())
 }
 
@@ -52,7 +52,7 @@ func (builder *messageBuilder) addIntGauge(name string, metric metrics.Gauge) {
 	builder.addIntValue(name, metric.Value())
 }
 
-func (builder *messageBuilder) addFloatGauge(name string, metric metrics.GaugeFloat64) {
+func (builder *messageBuilder) AddFloatGauge(name string, metric metrics.GaugeFloat64) {
 	if builder.FloatValues == nil {
 		builder.FloatValues = make(map[string]float64)
 	}
