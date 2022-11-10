@@ -23,6 +23,7 @@ message MetricsMessage {
   map<string, IntervalCounter> intervalCounters = 9;
   map<string, Timer> timers = 10;
   repeated UsageCounter usageCounters = 11;
+  bool doNotPropagate = 12; // if set to true, some other controller has already propagated this event
 
   message Meter {
     int64 count = 1;
