@@ -57,7 +57,7 @@ func NewRegistry(sourceId string, tags map[string]string) Registry {
 type registryImpl struct {
 	sourceId  string
 	tags      map[string]string
-	metricMap cmap.ConcurrentMap[any]
+	metricMap cmap.ConcurrentMap[string, any]
 }
 
 func (registry *registryImpl) dispose(name string) {
