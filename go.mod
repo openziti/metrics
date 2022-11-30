@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/michaelquigley/pfxlog v0.6.9
 	github.com/openziti/foundation/v2 v2.0.8
-	github.com/orcaman/concurrent-map/v2 v2.0.0
+	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/stretchr/testify v1.8.1
