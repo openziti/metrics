@@ -56,7 +56,7 @@ type intervalMetric interface {
 
 type usageRegistryImpl struct {
 	registryImpl
-	intervalMetrics cmap.ConcurrentMap[intervalMetric]
+	intervalMetrics cmap.ConcurrentMap[string, intervalMetric]
 	eventChan       chan func()
 	intervalBuckets []*bucketEvent
 	usageBuckets    []*metrics_pb.MetricsMessage_UsageCounter
