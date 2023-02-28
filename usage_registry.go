@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
+	"github.com/sirupsen/logrus"
 	"reflect"
 	"sort"
 	"sync"
@@ -41,7 +42,7 @@ func NewUsageRegistry(sourceId string, tags map[string]string, closeNotify <-cha
 	return registry
 }
 
-const defaultIntervalAgeThreshold = 80 * time.Second
+const defaultIntervalAgeThreshold = 10 * time.Second
 
 var intervalAgeThreshold = defaultIntervalAgeThreshold
 
@@ -147,6 +148,7 @@ func (self *usageRegistryImpl) PollWithoutUsageMetrics() *metrics_pb.MetricsMess
 }
 
 func (self *usageRegistryImpl) reportInterval(counter *intervalCounterImpl, intervalStartUTC int64, values map[string]uint64) {
+	logrus.Info("reporting")
 	bucket := &metrics_pb.MetricsMessage_IntervalBucket{
 		IntervalStartUTC: intervalStartUTC,
 		Values:           values,
@@ -164,6 +166,7 @@ func (self *usageRegistryImpl) reportInterval(counter *intervalCounterImpl, inte
 }
 
 func (self *usageRegistryImpl) reportUsage(intervalStartUTC int64, intervalLength time.Duration, values map[string]*usageSet) {
+	logrus.Info("reporting")
 	counter := &metrics_pb.MetricsMessage_UsageCounter{
 		IntervalStartUTC: intervalStartUTC,
 		IntervalLength:   uint64(intervalLength.Seconds()),
