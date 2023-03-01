@@ -42,9 +42,13 @@ func NewUsageRegistry(sourceId string, tags map[string]string, closeNotify <-cha
 	return registry
 }
 
-const defaultIntervalAgeThreshold = 10 * time.Second
+const defaultIntervalAgeThreshold = 80 * time.Second
 
 var intervalAgeThreshold = defaultIntervalAgeThreshold
+
+func SetIntervalAgeThreshold(i time.Duration) {
+	intervalAgeThreshold = i
+}
 
 type bucketEvent struct {
 	interval *metrics_pb.MetricsMessage_IntervalCounter
