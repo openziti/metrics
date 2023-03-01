@@ -45,6 +45,10 @@ const defaultIntervalAgeThreshold = 80 * time.Second
 
 var intervalAgeThreshold = defaultIntervalAgeThreshold
 
+func SetIntervalAgeThreshold(i time.Duration) {
+	intervalAgeThreshold = i
+}
+
 type bucketEvent struct {
 	interval *metrics_pb.MetricsMessage_IntervalCounter
 	name     string
