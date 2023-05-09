@@ -31,18 +31,49 @@ type Metric interface {
 	Dispose()
 }
 
-// Registry allows for configuring and accessing metrics for a fabric application
+// Registry allows for configuring and accessing metrics for an application
 type Registry interface {
+	// SourceId returns the source id of this Registry
 	SourceId() string
+
+	// Gauge returns a Gauge for the given name. If one does not yet exist, one will be created
 	Gauge(name string) Gauge
+
+	// FuncGauge returns a Gauge for the given name. If one does not yet exist, one will be created using
+	// the given function
 	FuncGauge(name string, f func() int64) Gauge
+
+	// Meter returns a Meter for the given name. If one does not yet exist, one will be created
 	Meter(name string) Meter
+
+	// Histogram returns a Histogram for the given name. If one does not yet exist, one will be created
 	Histogram(name string) Histogram
+
+	// Timer returns a Timer for the given name. If one does not yet exist, one will be created
 	Timer(name string) Timer
+
+	// EachMetric calls the given visitor function for each Metric in this registry
 	EachMetric(visitor func(name string, metric Metric))
 
+	// GetGauge returns the Gauge for the given name or nil if a Gauge with that name doesn't exist
+	GetGauge(name string) Gauge
+
+	// GetMeter returns the Meter for the given name or nil if a Meter with that name doesn't exist
+	GetMeter(name string) Meter
+
+	// GetHistogram returns the Histogram for the given name or nil if a Histogram with that name doesn't exist
+	GetHistogram(name string) Histogram
+
+	// GetTimer returns the Timer for the given name or nil if a Timer with that name doesn't exist
+	GetTimer(name string) Timer
+
+	// IsValidMetric returns true if a metric with the given name exists in the registry, false otherwise
 	IsValidMetric(name string) bool
+
+	// Poll returns a MetricsMessage with a snapshot of the metrics in the Registry
 	Poll() *metrics_pb.MetricsMessage
+
+	// DisposeAll removes and cleans up all metrics currently in the Registry
 	DisposeAll()
 }
 
@@ -76,6 +107,50 @@ func (registry *registryImpl) IsValidMetric(name string) bool {
 
 func (registry *registryImpl) SourceId() string {
 	return registry.sourceId
+}
+
+func (registry *registryImpl) GetGauge(name string) Gauge {
+	metric, found := registry.metricMap.Get(name)
+	if !found {
+		return nil
+	}
+	if gauge, ok := metric.(Gauge); ok {
+		return gauge
+	}
+	return nil
+}
+
+func (registry *registryImpl) GetMeter(name string) Meter {
+	metric, found := registry.metricMap.Get(name)
+	if !found {
+		return nil
+	}
+	if meter, ok := metric.(Meter); ok {
+		return meter
+	}
+	return nil
+}
+
+func (registry *registryImpl) GetHistogram(name string) Histogram {
+	metric, found := registry.metricMap.Get(name)
+	if !found {
+		return nil
+	}
+	if histogram, ok := metric.(Histogram); ok {
+		return histogram
+	}
+	return nil
+}
+
+func (registry *registryImpl) GetTimer(name string) Timer {
+	metric, found := registry.metricMap.Get(name)
+	if !found {
+		return nil
+	}
+	if timer, ok := metric.(Timer); ok {
+		return timer
+	}
+	return nil
 }
 
 func getOrCreateMetric[T Metric](registry *registryImpl, name string, newMetric func() T) T {
