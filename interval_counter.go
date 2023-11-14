@@ -36,7 +36,6 @@ func newIntervalCounter(name string,
 	eventChan chan func(),
 	reporter intervalCounterReporter,
 	disposeF func()) *intervalCounterImpl {
-
 	currentInterval := time.Now().Truncate(intervalSize).UTC().Unix()
 	currentCounters := make(map[string]uint64)
 	intervalMap := make(map[int64]map[string]uint64)

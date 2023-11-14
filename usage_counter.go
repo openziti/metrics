@@ -41,7 +41,6 @@ func newUsageCounter(name string,
 	reporter usageReporter,
 	disposeF func(),
 	eventChan chan func()) *usageCounterImpl {
-
 	currentInterval := time.Now().Truncate(intervalSize).UTC().Unix()
 	currentCounters := map[string]*usageSet{}
 	intervalMap := map[int64]map[string]*usageSet{}
