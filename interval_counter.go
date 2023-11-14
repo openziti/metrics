@@ -68,13 +68,13 @@ type intervalCounterImpl struct {
 	dispose         func()
 }
 
-func (intervalCounter *intervalCounterImpl) Update(intervalId string, time time.Time, value uint64) {
+func (intervalCounter *intervalCounterImpl) Update(intervalId string, timestamp time.Time, value uint64) {
 	if value == 0 {
 		return
 	}
 
 	intervalCounter.eventChan <- func() {
-		interval := time.Truncate(intervalCounter.intervalSize).UTC().Unix()
+		interval := timestamp.Truncate(intervalCounter.intervalSize).UTC().Unix()
 		valueMap := intervalCounter.getValueMapForInterval(interval)
 		valueMap[intervalId] += value
 	}
