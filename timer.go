@@ -1,8 +1,9 @@
 package metrics
 
 import (
-	"github.com/rcrowley/go-metrics"
 	"time"
+
+	"github.com/rcrowley/go-metrics"
 )
 
 type Timer interface {

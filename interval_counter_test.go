@@ -18,11 +18,12 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 type collectingReporter struct {

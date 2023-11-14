@@ -17,10 +17,11 @@
 package metrics
 
 import (
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 type intervalWaiter struct {
