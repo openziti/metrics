@@ -39,16 +39,16 @@ type intervalEvent struct {
 type intervalSlice []*intervalEvent
 
 func (s intervalSlice) Len() int {
-	return len(([]*intervalEvent)(s))
+	return len([]*intervalEvent(s))
 }
 
 func (s intervalSlice) Less(i, j int) bool {
-	slice := ([]*intervalEvent)(s)
+	slice := []*intervalEvent(s)
 	return slice[i].intervalStartUTC < slice[j].intervalStartUTC
 }
 
 func (s intervalSlice) Swap(i, j int) {
-	slice := ([]*intervalEvent)(s)
+	slice := []*intervalEvent(s)
 	tmp := slice[i]
 	slice[i] = slice[j]
 	slice[j] = tmp
