@@ -49,9 +49,7 @@ func (s intervalSlice) Less(i, j int) bool {
 
 func (s intervalSlice) Swap(i, j int) {
 	slice := []*intervalEvent(s)
-	tmp := slice[i]
-	slice[i] = slice[j]
-	slice[j] = tmp
+	slice[i], slice[j] = slice[j], slice[i]
 }
 
 func (reporter *collectingReporter) reportInterval(counter *intervalCounterImpl, intervalStartUTC int64, values map[string]uint64) {
