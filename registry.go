@@ -18,12 +18,12 @@ package metrics
 
 import (
 	"fmt"
+	"reflect"
+
 	"github.com/michaelquigley/pfxlog"
 	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
-	"github.com/pkg/errors"
 	"github.com/rcrowley/go-metrics"
-	"reflect"
 )
 
 // Metric is the base functionality for all metrics types
@@ -309,7 +309,7 @@ func (registry *registryImpl) GetOrRegister(s string, i interface{}) interface{}
 
 func (registry *registryImpl) Register(s string, i interface{}) error {
 	if registry.metricMap.SetIfAbsent(s, i) {
-		return errors.Errorf("duplicate metric %v", s)
+		return fmt.Errorf("duplicate metric %v", s)
 	}
 	return nil
 }
