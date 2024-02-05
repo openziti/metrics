@@ -3,7 +3,7 @@ module github.com/openziti/metrics
 go 1.19
 
 require (
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/michaelquigley/pfxlog v0.6.10
 	github.com/openziti/foundation/v2 v2.0.36
 	github.com/orcaman/concurrent-map/v2 v2.0.1
