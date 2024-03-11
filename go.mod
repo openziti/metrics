@@ -8,7 +8,7 @@ require (
 	github.com/openziti/foundation/v2 v2.0.38
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	google.golang.org/protobuf v1.32.0
 )
 
