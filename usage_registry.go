@@ -2,12 +2,13 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/openziti/metrics/metrics_pb"
-	cmap "github.com/orcaman/concurrent-map/v2"
 	"reflect"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/openziti/metrics/metrics_pb"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 // Handler represents a sink for metric events
