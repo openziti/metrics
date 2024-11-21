@@ -17,11 +17,12 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/openziti/metrics/metrics_pb"
 	"github.com/rcrowley/go-metrics"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 type messageBuilder metrics_pb.MetricsMessage
