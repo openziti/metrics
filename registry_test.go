@@ -1,10 +1,11 @@
 package metrics
 
 import (
-	"github.com/openziti/metrics/metrics_pb"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/openziti/metrics/metrics_pb"
+	"github.com/stretchr/testify/assert"
 )
 
 type testData struct {

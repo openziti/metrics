@@ -41,7 +41,6 @@ func newUsageCounter(name string,
 	reporter usageReporter,
 	disposeF func(),
 	eventChan chan func()) *usageCounterImpl {
-
 	currentInterval := time.Now().Truncate(intervalSize).UTC().Unix()
 	currentCounters := map[string]*usageSet{}
 	intervalMap := map[int64]map[string]*usageSet{}
@@ -79,13 +78,13 @@ type usageCounterImpl struct {
 	dispose         func()
 }
 
-func (self *usageCounterImpl) Update(source UsageSource, usageType string, time time.Time, value uint64) {
+func (self *usageCounterImpl) Update(source UsageSource, usageType string, timestamp time.Time, value uint64) {
 	if value == 0 {
 		return
 	}
 
 	self.eventChan <- func() {
-		interval := time.Truncate(self.intervalSize).UTC().Unix()
+		interval := timestamp.Truncate(self.intervalSize).UTC().Unix()
 		valueMap := self.getValueMapForInterval(interval)
 		set := valueMap[source.GetIntervalId()]
 		if set == nil {
