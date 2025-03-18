@@ -357,33 +357,6 @@ func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
 	return (*metrics_pb.MetricsMessage)(builder)
 }
 
-func (registry *registryImpl) pollAppend(builder *messageBuilder) *metrics_pb.MetricsMessage {
-	if len(builder.IntervalCounters) == 0 && len(builder.UsageCounters) == 0 && registry.metricMap.Count() == 0 {
-		return nil
-	}
-
-	registry.EachMetric(func(name string, i Metric) {
-		switch metric := i.(type) {
-		case *gaugeImpl:
-			builder.addIntGauge(name, metric.Snapshot())
-		case *meterImpl:
-			builder.addMeter(name, metric.Snapshot())
-		case *histogramImpl:
-			builder.addHistogram(name, metric.Snapshot())
-		case *timerImpl:
-			builder.addTimer(name, metric.Snapshot())
-		case *intervalCounterImpl:
-		// ignore, handled below
-		case *usageCounterImpl:
-			// ignore, handled below
-		default:
-			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
-		}
-	})
-
-	return (*metrics_pb.MetricsMessage)(builder)
-}
-
 type refCounted interface {
 	IncrRefCount() int32
 	DecrRefCount() int32

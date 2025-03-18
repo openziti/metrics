@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/michaelquigley/pfxlog"
 	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"reflect"
@@ -12,7 +13,9 @@ import (
 
 const (
 	DefaultIntervalAgeThreshold = 80 * time.Second
-	DefaultEventQueueSize       = 256
+
+	MinEventQueueSize     = 16
+	DefaultEventQueueSize = 256
 )
 
 // Handler represents a sink for metric events
@@ -50,11 +53,11 @@ func DefaultUsageRegistryConfig(sourceId string, closeNotify <-chan struct{}) Us
 }
 
 func NewUsageRegistry(config UsageRegistryConfig) UsageRegistry {
-	if config.EventQueueSize < 16 {
-		config.EventQueueSize = 16
+	if config.EventQueueSize < MinEventQueueSize {
+		config.EventQueueSize = MinEventQueueSize
 	}
 
-	if config.IntervalAgeThreshold < 1 {
+	if config.IntervalAgeThreshold <= 0 {
 		config.IntervalAgeThreshold = DefaultIntervalAgeThreshold
 	}
 
@@ -250,6 +253,33 @@ func (self *usageRegistryImpl) flushAndPoll() *messageBuilder {
 	}
 
 	return builder
+}
+
+func (registry *usageRegistryImpl) pollAppend(builder *messageBuilder) *metrics_pb.MetricsMessage {
+	if len(builder.IntervalCounters) == 0 && len(builder.UsageCounters) == 0 && registry.metricMap.Count() == 0 {
+		return nil
+	}
+
+	registry.EachMetric(func(name string, i Metric) {
+		switch metric := i.(type) {
+		case *gaugeImpl:
+			builder.addIntGauge(name, metric.Snapshot())
+		case *meterImpl:
+			builder.addMeter(name, metric.Snapshot())
+		case *histogramImpl:
+			builder.addHistogram(name, metric.Snapshot())
+		case *timerImpl:
+			builder.addTimer(name, metric.Snapshot())
+		case *intervalCounterImpl:
+		// ignore, handled below
+		case *usageCounterImpl:
+			// ignore, handled below
+		default:
+			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
+		}
+	})
+
+	return (*metrics_pb.MetricsMessage)(builder)
 }
 
 func (self *usageRegistryImpl) sendMsgs(eventSink Handler, msgEvents chan *messageBuilder) {
