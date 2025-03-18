@@ -15,9 +15,12 @@ type testData struct {
 
 func setUpTest(t *testing.T) *testData {
 	closeNotify := make(chan struct{})
+
+	config := DefaultUsageRegistryConfig(t.Name(), closeNotify)
+
 	td := &testData{
 		closeNotify: closeNotify,
-		registry:    NewUsageRegistry(t.Name(), nil, closeNotify).(*usageRegistryImpl),
+		registry:    NewUsageRegistry(config).(*usageRegistryImpl),
 	}
 	td.registry.StartReporting(nil, time.Hour, 10)
 	return td

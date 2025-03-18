@@ -68,22 +68,16 @@ func (t testSource) GetTags() map[string]string {
 	return t.tags
 }
 
-func resetAgeThreshold() {
-	intervalAgeThreshold = defaultIntervalAgeThreshold
-}
-
 func TestUsageCounterSingleInterval(t *testing.T) {
 	req := require.New(t)
-
-	intervalAgeThreshold = 0
-	defer resetAgeThreshold()
 
 	closeNotify := make(chan struct{})
 	defer close(closeNotify)
 
 	interval := time.Second
 
-	registry := NewUsageRegistry("test", nil, closeNotify).(*usageRegistryImpl)
+	config := DefaultUsageRegistryConfig("test", closeNotify)
+	registry := NewUsageRegistry(config).(*usageRegistryImpl)
 	registry.StartReporting(nil, time.Hour, 10)
 	usageCounter := registry.UsageCounter("usage", interval)
 	waiter := &intervalWaiter{duration: interval}
@@ -141,15 +135,13 @@ func TestUsageCounterSingleInterval(t *testing.T) {
 func TestUsageCounterTwoIntervals(t *testing.T) {
 	req := require.New(t)
 
-	intervalAgeThreshold = 0
-	defer resetAgeThreshold()
-
 	closeNotify := make(chan struct{})
 	defer close(closeNotify)
 
 	interval := time.Second
 
-	registry := NewUsageRegistry("test", nil, closeNotify).(*usageRegistryImpl)
+	config := DefaultUsageRegistryConfig("test", closeNotify)
+	registry := NewUsageRegistry(config).(*usageRegistryImpl)
 	registry.StartReporting(nil, time.Hour, 10)
 	usageCounter := registry.UsageCounter("usage", interval)
 	waiter := &intervalWaiter{duration: interval}
@@ -246,15 +238,13 @@ func TestUsageCounterTwoIntervals(t *testing.T) {
 func TestUsageCounterTwoIntervalsSinglePoll(t *testing.T) {
 	req := require.New(t)
 
-	intervalAgeThreshold = 0
-	defer resetAgeThreshold()
-
 	closeNotify := make(chan struct{})
 	defer close(closeNotify)
 
 	interval := time.Second
 
-	registry := NewUsageRegistry("test", nil, closeNotify).(*usageRegistryImpl)
+	config := DefaultUsageRegistryConfig("test", closeNotify)
+	registry := NewUsageRegistry(config).(*usageRegistryImpl)
 	registry.StartReporting(nil, time.Hour, 10)
 	usageCounter := registry.UsageCounter("usage", interval)
 	waiter := &intervalWaiter{duration: interval}
