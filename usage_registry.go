@@ -65,7 +65,7 @@ func NewUsageRegistry(config UsageRegistryConfig) UsageRegistry {
 		registryImpl: registryImpl{
 			sourceId:  config.SourceId,
 			tags:      config.Tags,
-			metricMap: cmap.New[any](),
+			metricMap: cmap.New[Metric](),
 		},
 		intervalMetrics: cmap.New[intervalMetric](),
 		eventChan:       make(chan func(), config.EventQueueSize),

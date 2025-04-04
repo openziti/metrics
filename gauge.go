@@ -6,8 +6,9 @@ import (
 
 // Gauge represents a metric which is measuring a count and a rate
 type Gauge interface {
-	metrics.Gauge
 	Metric
+	Value() int64
+	Update(int64)
 }
 
 type gaugeImpl struct {
