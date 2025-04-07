@@ -73,22 +73,31 @@ type Registry interface {
 	// Poll returns a MetricsMessage with a snapshot of the metrics in the Registry
 	Poll() *metrics_pb.MetricsMessage
 
+	AcceptVisitor(visitor Visitor)
+
 	// DisposeAll removes and cleans up all metrics currently in the Registry
 	DisposeAll()
+}
+
+type Visitor interface {
+	VisitGauge(name string, gauge Gauge)
+	VisitMeter(name string, meter Meter)
+	VisitHistogram(name string, histogram Histogram)
+	VisitTimer(name string, timer Timer)
 }
 
 func NewRegistry(sourceId string, tags map[string]string) Registry {
 	return &registryImpl{
 		sourceId:  sourceId,
 		tags:      tags,
-		metricMap: cmap.New[any](),
+		metricMap: cmap.New[Metric](),
 	}
 }
 
 type registryImpl struct {
 	sourceId  string
 	tags      map[string]string
-	metricMap cmap.ConcurrentMap[string, any]
+	metricMap cmap.ConcurrentMap[string, Metric]
 }
 
 func (registry *registryImpl) dispose(name string) {
@@ -236,7 +245,7 @@ func (registry *registryImpl) Histogram(name string) Histogram {
 }
 
 func (registry *registryImpl) getRefCounted(name string, factory func() refCounted) refCounted {
-	metric := registry.metricMap.Upsert(name, nil, func(exist bool, valueInMap interface{}, newValue interface{}) interface{} {
+	metric := registry.metricMap.Upsert(name, nil, func(exist bool, valueInMap Metric, newValue Metric) Metric {
 		if exist {
 			if h, ok := valueInMap.(refCounted); ok {
 				h.IncrRefCount()
@@ -257,7 +266,7 @@ func (registry *registryImpl) getRefCounted(name string, factory func() refCount
 }
 
 func (registry *registryImpl) disposeRefCounted(metric refCounted) {
-	registry.metricMap.RemoveCb(metric.Name(), func(key string, v interface{}, exists bool) bool {
+	registry.metricMap.RemoveCb(metric.Name(), func(key string, v Metric, exists bool) bool {
 		if !exists {
 			return true
 		}
@@ -278,7 +287,7 @@ func (registry *registryImpl) Timer(name string) Timer {
 
 func (registry *registryImpl) EachMetric(visitor func(name string, metric Metric)) {
 	for entry := range registry.metricMap.IterBuffered() {
-		visitor(entry.Key, entry.Val.(Metric))
+		visitor(entry.Key, entry.Val)
 	}
 }
 
@@ -291,7 +300,7 @@ func (registry *registryImpl) Each(visitor func(string, interface{})) {
 // Provide rest of go-metrics Registry interface, so we can use go-metrics reporters if desired
 func (registry *registryImpl) Get(s string) interface{} {
 	val, _ := registry.metricMap.Get(s)
-	return val
+	return unwrapMetric(val)
 }
 
 func (registry *registryImpl) GetAll() map[string]map[string]interface{} {
@@ -299,7 +308,7 @@ func (registry *registryImpl) GetAll() map[string]map[string]interface{} {
 }
 
 func (registry *registryImpl) GetOrRegister(s string, i interface{}) interface{} {
-	return registry.metricMap.Upsert(s, i, func(exist bool, valueInMap interface{}, newValue interface{}) interface{} {
+	return registry.metricMap.Upsert(s, wrapMetric(i), func(exist bool, valueInMap Metric, newValue Metric) Metric {
 		if exist {
 			return valueInMap
 		}
@@ -308,7 +317,7 @@ func (registry *registryImpl) GetOrRegister(s string, i interface{}) interface{}
 }
 
 func (registry *registryImpl) Register(s string, i interface{}) error {
-	if registry.metricMap.SetIfAbsent(s, i) {
+	if registry.metricMap.SetIfAbsent(s, wrapMetric(i)) {
 		return fmt.Errorf("duplicate metric %v", s)
 	}
 	return nil
@@ -357,9 +366,61 @@ func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
 	return (*metrics_pb.MetricsMessage)(builder)
 }
 
+func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
+	// If there's nothing to report, skip it
+	if registry.metricMap.Count() == 0 {
+		return
+	}
+
+	registry.EachMetric(func(name string, i Metric) {
+		switch metric := i.(type) {
+		case *gaugeImpl:
+			visitor.VisitGauge(name, metric)
+		case *meterImpl:
+			visitor.VisitMeter(name, metric)
+		case *histogramImpl:
+			visitor.VisitHistogram(name, metric.CreateSnapshot())
+		case *timerImpl:
+			visitor.VisitTimer(name, metric.CreateSnapshot())
+		case *intervalCounterImpl:
+		// ignore, handled below
+		case *usageCounterImpl:
+			// ignore, handled below
+		default:
+			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
+		}
+	})
+}
+
 type refCounted interface {
+	Metric
 	IncrRefCount() int32
 	DecrRefCount() int32
 	Name() string
 	stop()
 }
+
+func wrapMetric(v any) Metric {
+	if v == nil {
+		return nil
+	}
+	if m, ok := v.(Metric); ok {
+		return m
+	}
+	return metricWrapper{
+		value: v,
+	}
+}
+
+func unwrapMetric(m Metric) any {
+	if v, ok := m.(metricWrapper); ok {
+		return v.value
+	}
+	return m
+}
+
+type metricWrapper struct {
+	value any
+}
+
+func (m metricWrapper) Dispose() {}

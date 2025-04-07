@@ -24,8 +24,19 @@ import (
 // Histogram represents a metric which is measuring the distribution of values for some measurement
 type Histogram interface {
 	Metric
+	Count() int64
+	Max() int64
+	Mean() float64
+	Min() int64
+	Percentile(float64) float64
+	Percentiles([]float64) []float64
+	StdDev() float64
+	Sum() int64
+	Variance() float64
+
 	Clear()
 	Update(int64)
+	CreateSnapshot() Histogram
 }
 
 type histogramImpl struct {
@@ -45,4 +56,26 @@ func (self *histogramImpl) Dispose() {
 
 func (self *histogramImpl) stop() {
 	// no resources to cleanup
+}
+
+func (self *histogramImpl) CreateSnapshot() Histogram {
+	return &histogramSnapshot{
+		Histogram: self.Snapshot(),
+		name:      self.name,
+	}
+}
+
+type histogramSnapshot struct {
+	metrics.Histogram
+	name string
+}
+
+func (self *histogramSnapshot) Name() string {
+	return self.name
+}
+
+func (self *histogramSnapshot) Dispose() {}
+
+func (self *histogramSnapshot) CreateSnapshot() Histogram {
+	return self
 }

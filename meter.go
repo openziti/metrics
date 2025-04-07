@@ -24,6 +24,11 @@ import (
 // Meter represents a metric which is measuring a count and a rate
 type Meter interface {
 	Metric
+	Count() int64
+	Rate1() float64
+	Rate5() float64
+	Rate15() float64
+	RateMean() float64
 	Mark(int64)
 }
 
