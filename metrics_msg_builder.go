@@ -17,11 +17,12 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/openziti/metrics/metrics_pb"
 	"github.com/rcrowley/go-metrics"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 type messageBuilder metrics_pb.MetricsMessage
@@ -52,7 +53,7 @@ func (builder *messageBuilder) addIntGauge(name string, metric metrics.Gauge) {
 	builder.addIntValue(name, metric.Value())
 }
 
-func (builder *messageBuilder) AddFloatGauge(name string, metric metrics.GaugeFloat64) {
+func (builder *messageBuilder) addFloatGauge(name string, metric metrics.GaugeFloat64) {
 	if builder.FloatValues == nil {
 		builder.FloatValues = make(map[string]float64)
 	}
