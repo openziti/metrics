@@ -96,6 +96,10 @@ func (self *DelegatingReporter) VisitGauge(name string, gauge Gauge) {
 	self.VisitIntMetric(name, gauge.Value(), "")
 }
 
+func (self *DelegatingReporter) VisitGaugeFloat64(name string, gauge GaugeFloat64) {
+	self.VisitFloatMetric(name, gauge.Value(), "")
+}
+
 func (self *DelegatingReporter) VisitMeter(name string, metric Meter) {
 	self.VisitIntMetric(name, metric.Count(), MetricNameCount)
 	self.VisitFloatMetric(name, metric.Rate1(), MetricNameRateM1)

@@ -19,3 +19,19 @@ type gaugeImpl struct {
 func (gauge *gaugeImpl) Dispose() {
 	gauge.dispose()
 }
+
+// GaugeFloat64 represents a metric which holds a float64 value
+type GaugeFloat64 interface {
+	Metric
+	Value() float64
+	Update(float64)
+}
+
+type gaugeFloat64Impl struct {
+	metrics.GaugeFloat64
+	dispose func()
+}
+
+func (gauge *gaugeFloat64Impl) Dispose() {
+	gauge.dispose()
+}
