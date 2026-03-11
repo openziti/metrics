@@ -264,6 +264,8 @@ func (registry *usageRegistryImpl) pollAppend(builder *messageBuilder) *metrics_
 		switch metric := i.(type) {
 		case *gaugeImpl:
 			builder.addIntGauge(name, metric.Snapshot())
+		case *gaugeFloat64Impl:
+			builder.AddFloatGauge(name, metric.Snapshot())
 		case *meterImpl:
 			builder.addMeter(name, metric.Snapshot())
 		case *histogramImpl:

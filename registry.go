@@ -43,6 +43,13 @@ type Registry interface {
 	// the given function
 	FuncGauge(name string, f func() int64) Gauge
 
+	// GaugeFloat64 returns a GaugeFloat64 for the given name. If one does not yet exist, one will be created
+	GaugeFloat64(name string) GaugeFloat64
+
+	// FuncGaugeFloat64 returns a GaugeFloat64 for the given name. If one does not yet exist, one will be created
+	// using the given function
+	FuncGaugeFloat64(name string, f func() float64) GaugeFloat64
+
 	// Meter returns a Meter for the given name. If one does not yet exist, one will be created
 	Meter(name string) Meter
 
@@ -57,6 +64,9 @@ type Registry interface {
 
 	// GetGauge returns the Gauge for the given name or nil if a Gauge with that name doesn't exist
 	GetGauge(name string) Gauge
+
+	// GetGaugeFloat64 returns the GaugeFloat64 for the given name or nil if one doesn't exist
+	GetGaugeFloat64(name string) GaugeFloat64
 
 	// GetMeter returns the Meter for the given name or nil if a Meter with that name doesn't exist
 	GetMeter(name string) Meter
@@ -81,6 +91,7 @@ type Registry interface {
 
 type Visitor interface {
 	VisitGauge(name string, gauge Gauge)
+	VisitGaugeFloat64(name string, gauge GaugeFloat64)
 	VisitMeter(name string, meter Meter)
 	VisitHistogram(name string, histogram Histogram)
 	VisitTimer(name string, timer Timer)
@@ -125,6 +136,17 @@ func (registry *registryImpl) GetGauge(name string) Gauge {
 		return nil
 	}
 	if gauge, ok := metric.(Gauge); ok {
+		return gauge
+	}
+	return nil
+}
+
+func (registry *registryImpl) GetGaugeFloat64(name string) GaugeFloat64 {
+	metric, found := registry.metricMap.Get(name)
+	if !found {
+		return nil
+	}
+	if gauge, ok := metric.(GaugeFloat64); ok {
 		return gauge
 	}
 	return nil
@@ -198,6 +220,28 @@ func (registry *registryImpl) FuncGauge(name string, f func() int64) Gauge {
 	return getOrCreateMetric(registry, name, func() Gauge {
 		return &gaugeImpl{
 			Gauge: metrics.NewFunctionalGauge(f),
+			dispose: func() {
+				registry.dispose(name)
+			},
+		}
+	})
+}
+
+func (registry *registryImpl) GaugeFloat64(name string) GaugeFloat64 {
+	return getOrCreateMetric(registry, name, func() GaugeFloat64 {
+		return &gaugeFloat64Impl{
+			GaugeFloat64: metrics.NewGaugeFloat64(),
+			dispose: func() {
+				registry.dispose(name)
+			},
+		}
+	})
+}
+
+func (registry *registryImpl) FuncGaugeFloat64(name string, f func() float64) GaugeFloat64 {
+	return getOrCreateMetric(registry, name, func() GaugeFloat64 {
+		return &gaugeFloat64Impl{
+			GaugeFloat64: metrics.NewFunctionalGaugeFloat64(f),
 			dispose: func() {
 				registry.dispose(name)
 			},
@@ -353,6 +397,8 @@ func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
 		switch metric := i.(type) {
 		case *gaugeImpl:
 			builder.addIntGauge(name, metric.Snapshot())
+		case *gaugeFloat64Impl:
+			builder.AddFloatGauge(name, metric.Snapshot())
 		case *meterImpl:
 			builder.addMeter(name, metric.Snapshot())
 		case *histogramImpl:
@@ -381,6 +427,8 @@ func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
 		switch metric := i.(type) {
 		case *gaugeImpl:
 			visitor.VisitGauge(name, metric)
+		case *gaugeFloat64Impl:
+			visitor.VisitGaugeFloat64(name, metric)
 		case *meterImpl:
 			visitor.VisitMeter(name, metric)
 		case *histogramImpl:
