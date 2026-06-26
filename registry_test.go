@@ -1,94 +1,82 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
 package metrics
 
 import (
-	"github.com/openziti/metrics/metrics_pb"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-type testData struct {
-	closeNotify chan struct{}
-	registry    *usageRegistryImpl
-	events      []*metrics_pb.MetricsMessage
+// collectingVisitor records which metrics AcceptVisitor walks, so the tests can
+// assert the collection-only registry exposes each metric type to a Visitor.
+type collectingVisitor struct {
+	gauges     map[string]Gauge
+	floatGauge map[string]GaugeFloat64
+	meters     map[string]Meter
+	histograms map[string]Histogram
+	timers     map[string]Timer
 }
 
-func setUpTest(t *testing.T) *testData {
-	closeNotify := make(chan struct{})
-
-	config := DefaultUsageRegistryConfig(t.Name(), closeNotify)
-
-	td := &testData{
-		closeNotify: closeNotify,
-		registry:    NewUsageRegistry(config).(*usageRegistryImpl),
+func newCollectingVisitor() *collectingVisitor {
+	return &collectingVisitor{
+		gauges:     map[string]Gauge{},
+		floatGauge: map[string]GaugeFloat64{},
+		meters:     map[string]Meter{},
+		histograms: map[string]Histogram{},
+		timers:     map[string]Timer{},
 	}
-	td.registry.StartReporting(nil, time.Hour, 10)
-	return td
 }
 
-func (t *testData) Shutdown() {
-	close(t.closeNotify)
+func (v *collectingVisitor) VisitGauge(name string, gauge Gauge)           { v.gauges[name] = gauge }
+func (v *collectingVisitor) VisitGaugeFloat64(name string, g GaugeFloat64) { v.floatGauge[name] = g }
+func (v *collectingVisitor) VisitMeter(name string, meter Meter)           { v.meters[name] = meter }
+func (v *collectingVisitor) VisitHistogram(name string, histogram Histogram) {
+	v.histograms[name] = histogram
+}
+func (v *collectingVisitor) VisitTimer(name string, timer Timer) { v.timers[name] = timer }
+
+func TestAcceptVisitorEmpty(t *testing.T) {
+	registry := NewRegistry("test", nil)
+	visitor := newCollectingVisitor()
+	registry.AcceptVisitor(visitor)
+	require.Empty(t, visitor.gauges)
+	require.Empty(t, visitor.meters)
+	require.Empty(t, visitor.histograms)
+	require.Empty(t, visitor.timers)
 }
 
-func (t *testData) AcceptMetrics(e *metrics_pb.MetricsMessage) {
-	t.events = append(t.events, e)
-}
+func TestAcceptVisitorWalksAllTypes(t *testing.T) {
+	registry := NewRegistry("test", nil)
 
-func TestEmpty(t *testing.T) {
-	td := setUpTest(t)
-	defer td.Shutdown()
+	registry.Gauge("gauge").Update(3)
+	registry.GaugeFloat64("floatGauge").Update(1.5)
+	registry.Meter("meter").Mark(1)
+	registry.Histogram("histogram").Update(10)
+	registry.Timer("timer").Update(time.Second)
 
-	td.registry.FlushToHandler(td)
-	assert.Len(t, td.events, 0)
-}
+	visitor := newCollectingVisitor()
+	registry.AcceptVisitor(visitor)
 
-func Test_Histogram(t *testing.T) {
-	td := setUpTest(t)
-	defer td.Shutdown()
-
-	hist := td.registry.Histogram("test.hist")
-	hist.Update(10)
-
-	td.registry.FlushToHandler(td)
-	assert.Len(t, td.events, 1)
-
-	ev := td.events[0]
-	assert.Nil(t, ev.FloatValues)
-	assert.Nil(t, ev.Meters)
-	assert.Nil(t, ev.IntValues)
-
-	assert.NotNil(t, ev.Histograms)
-
-	hm := ev.Histograms["test.hist"]
-	assert.NotNil(t, hm)
-	assert.Equal(t, int64(10), hm.Min)
-	assert.Equal(t, int64(10), hm.Max)
-}
-
-func Test_Timer(t *testing.T) {
-	td := setUpTest(t)
-	defer td.Shutdown()
-
-	timer := td.registry.Timer("test.timer")
-
-	timer.Update(3 * time.Second)
-
-	timer.Time(func() {
-		<-time.After(time.Second)
-	})
-
-	td.registry.FlushToHandler(td)
-	assert.Len(t, td.events, 1)
-
-	ev := td.events[0]
-	assert.Nil(t, ev.FloatValues)
-	assert.Nil(t, ev.Meters)
-	assert.Nil(t, ev.IntValues)
-
-	hm := ev.Timers["test.timer"]
-	assert.NotNil(t, hm)
-	assert.Equal(t, int64(2), hm.Count)
-
-	assert.Equal(t, 3*time.Second, time.Duration(hm.Max))
-	assert.InDelta(t, time.Second, time.Duration(hm.Min), float64(2*time.Millisecond))
+	require.Contains(t, visitor.gauges, "gauge")
+	require.Equal(t, int64(3), visitor.gauges["gauge"].Value())
+	require.Contains(t, visitor.floatGauge, "floatGauge")
+	require.Contains(t, visitor.meters, "meter")
+	require.Contains(t, visitor.histograms, "histogram")
+	require.Contains(t, visitor.timers, "timer")
 }

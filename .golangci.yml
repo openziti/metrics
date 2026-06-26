@@ -1,0 +1,9 @@
+version: "2"
+linters:
+  exclusions:
+    rules:
+      # ST1006: the codebase deliberately uses "self" as the receiver name per
+      # openziti house style.
+      - linters:
+          - staticcheck
+        text: "ST1006"
