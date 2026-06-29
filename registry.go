@@ -18,10 +18,9 @@ package metrics
 
 import (
 	"fmt"
+	"log/slog"
 	"reflect"
 
-	"github.com/michaelquigley/pfxlog"
-	"github.com/openziti/metrics/metrics_pb"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/rcrowley/go-metrics"
 )
@@ -79,9 +78,6 @@ type Registry interface {
 
 	// IsValidMetric returns true if a metric with the given name exists in the registry, false otherwise
 	IsValidMetric(name string) bool
-
-	// Poll returns a MetricsMessage with a snapshot of the metrics in the Registry
-	Poll() *metrics_pb.MetricsMessage
 
 	AcceptVisitor(visitor Visitor)
 
@@ -385,38 +381,6 @@ func (registry *registryImpl) UnregisterAll() {
 	}
 }
 
-func (registry *registryImpl) Poll() *metrics_pb.MetricsMessage {
-	// If there's nothing to report, skip it
-	if registry.metricMap.Count() == 0 {
-		return nil
-	}
-
-	builder := newMessageBuilder(registry.sourceId, registry.tags)
-
-	registry.EachMetric(func(name string, i Metric) {
-		switch metric := i.(type) {
-		case *gaugeImpl:
-			builder.addIntGauge(name, metric.Snapshot())
-		case *gaugeFloat64Impl:
-			builder.addFloatGauge(name, metric.Snapshot())
-		case *meterImpl:
-			builder.addMeter(name, metric.Snapshot())
-		case *histogramImpl:
-			builder.addHistogram(name, metric.Snapshot())
-		case *timerImpl:
-			builder.addTimer(name, metric.Snapshot())
-		case *intervalCounterImpl:
-		// ignore, handled below
-		case *usageCounterImpl:
-			// ignore, handled below
-		default:
-			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
-		}
-	})
-
-	return (*metrics_pb.MetricsMessage)(builder)
-}
-
 func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
 	// If there's nothing to report, skip it
 	if registry.metricMap.Count() == 0 {
@@ -435,12 +399,8 @@ func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
 			visitor.VisitHistogram(name, metric.CreateSnapshot())
 		case *timerImpl:
 			visitor.VisitTimer(name, metric.CreateSnapshot())
-		case *intervalCounterImpl:
-		// ignore, handled below
-		case *usageCounterImpl:
-			// ignore, handled below
 		default:
-			pfxlog.Logger().Errorf("Unsupported metric type %v", reflect.TypeOf(i))
+			slog.Error("unsupported metric type", "type", reflect.TypeOf(i))
 		}
 	})
 }
