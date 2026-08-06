@@ -18,12 +18,15 @@ package metrics
 
 import (
 	"fmt"
-	"log/slog"
 	"reflect"
 
+	"github.com/openziti/foundation/v2/logging"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/rcrowley/go-metrics"
 )
+
+// log is the package-level logger for the metrics package.
+var log = logging.For("metrics")
 
 // Metric is the base functionality for all metrics types
 type Metric interface {
@@ -400,7 +403,7 @@ func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
 		case *timerImpl:
 			visitor.VisitTimer(name, metric.CreateSnapshot())
 		default:
-			slog.Error("unsupported metric type", "type", reflect.TypeOf(i))
+			log.Error("unsupported metric type", "type", reflect.TypeOf(i))
 		}
 	})
 }
