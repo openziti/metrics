@@ -30,10 +30,24 @@ var log = logging.For("metrics")
 
 // Metric is the base functionality for all metrics types
 type Metric interface {
+	// Dispose releases this metric. For a Meter or Histogram, which are reference counted, it releases one
+	// reference and tears the metric down only once the last is gone. For every other type it removes the
+	// metric outright.
 	Dispose()
 }
 
-// Registry allows for configuring and accessing metrics for an application
+// Registry allows for configuring and accessing metrics for an application.
+//
+// Accessors divide into two kinds, and the difference is a caller obligation rather than an
+// implementation detail. Meter and Histogram are reference counted: every call takes a reference,
+// including calls that find the metric already present, and Dispose releases one. Everything else
+// returns the existing metric without taking anything. So a Meter or Histogram must be resolved once
+// and held, where a Gauge or Timer may be looked up as often as is convenient.
+//
+// Reference counting is there for metrics whose owner can be replaced under the same name, and whose
+// replacement may resolve the metric before the outgoing owner has disposed it. Each owner holds one
+// reference, so the outgoing Dispose releases only its own and the metric survives for the replacement
+// rather than being torn down beneath it. A metric with a single, stable owner gains nothing from it.
 type Registry interface {
 	// SourceId returns the source id of this Registry
 	SourceId() string
@@ -52,13 +66,22 @@ type Registry interface {
 	// using the given function
 	FuncGaugeFloat64(name string, f func() float64) GaugeFloat64
 
-	// Meter returns a Meter for the given name. If one does not yet exist, one will be created
+	// Meter returns a Meter for the given name, creating one if it does not yet exist.
+	//
+	// Every call takes a reference, so resolve the Meter once and hold it rather than calling this each
+	// time you record. A Meter resolved on a per-event path accumulates references it never sheds. Dispose
+	// then only decrements the count, so the Meter stays in the Registry and keeps being reported, and once
+	// DisposeAll has cleared the Registry its ticker keeps running until a further Dispose on a held handle.
 	Meter(name string) Meter
 
-	// Histogram returns a Histogram for the given name. If one does not yet exist, one will be created
+	// Histogram returns a Histogram for the given name, creating one if it does not yet exist.
+	//
+	// Reference counted like Meter, so resolve it once and hold it. A Histogram holding excess references
+	// is not removed by Dispose: it stays in the Registry and keeps being reported until DisposeAll.
 	Histogram(name string) Histogram
 
-	// Timer returns a Timer for the given name. If one does not yet exist, one will be created
+	// Timer returns a Timer for the given name, creating one if it does not yet exist. Unlike Meter and
+	// Histogram this takes no reference, so it is safe to call repeatedly.
 	Timer(name string) Timer
 
 	// EachMetric calls the given visitor function for each Metric in this registry
@@ -84,7 +107,10 @@ type Registry interface {
 
 	AcceptVisitor(visitor Visitor)
 
-	// DisposeAll removes and cleans up all metrics currently in the Registry
+	// DisposeAll clears the Registry, releasing one reference to each metric. A Meter or Histogram holding
+	// more than one reference is decremented rather than torn down; the final clear drops it from the
+	// Registry, but a Meter keeps ticking until Dispose is called on a held handle, which tears down any
+	// metric no longer in the Registry regardless of its count.
 	DisposeAll()
 }
 
