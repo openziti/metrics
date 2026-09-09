@@ -30,24 +30,26 @@ var log = logging.For("metrics")
 
 // Metric is the base functionality for all metrics types
 type Metric interface {
-	// Dispose releases this metric. For a Meter or Histogram, which are reference counted, it releases one
-	// reference and tears the metric down only once the last is gone. For every other type it removes the
-	// metric outright.
+	// Dispose removes this metric from its Registry and releases any resources it holds. A metric obtained
+	// from RefCountedMeter or RefCountedHistogram is instead released by one reference and torn down only
+	// once the last is gone.
 	Dispose()
 }
 
 // Registry allows for configuring and accessing metrics for an application.
 //
-// Accessors divide into two kinds, and the difference is a caller obligation rather than an
-// implementation detail. Meter and Histogram are reference counted: every call takes a reference,
-// including calls that find the metric already present, and Dispose releases one. Everything else
-// returns the existing metric without taking anything. So a Meter or Histogram must be resolved once
-// and held, where a Gauge or Timer may be looked up as often as is convenient.
+// Every accessor returns the existing metric for a name or creates one, and may be called as often as
+// is convenient, except RefCountedMeter and RefCountedHistogram. Those take a reference on every call,
+// including calls that find the metric already present, and Dispose releases one. Each owner of a
+// reference counted metric resolves it once, holds it, and disposes it once.
 //
-// Reference counting is there for metrics whose owner can be replaced under the same name, and whose
-// replacement may resolve the metric before the outgoing owner has disposed it. Each owner holds one
-// reference, so the outgoing Dispose releases only its own and the metric survives for the replacement
-// rather than being torn down beneath it. A metric with a single, stable owner gains nothing from it.
+// Reference counting is for metrics whose owner can be replaced under the same name, where the
+// replacement may resolve the metric before the outgoing owner has disposed it. The outgoing Dispose
+// releases only its own reference, so the metric survives for the replacement rather than being torn
+// down beneath it. A metric with a single, stable owner gains nothing from it.
+//
+// A name is bound to the kind of accessor that created it. Resolving it through an accessor of a
+// different kind, including Meter against a name created by RefCountedMeter or the reverse, panics.
 type Registry interface {
 	// SourceId returns the source id of this Registry
 	SourceId() string
@@ -66,22 +68,26 @@ type Registry interface {
 	// using the given function
 	FuncGaugeFloat64(name string, f func() float64) GaugeFloat64
 
-	// Meter returns a Meter for the given name, creating one if it does not yet exist.
-	//
-	// Every call takes a reference, so resolve the Meter once and hold it rather than calling this each
-	// time you record. A Meter resolved on a per-event path accumulates references it never sheds. Dispose
-	// then only decrements the count, so the Meter stays in the Registry and keeps being reported, and once
-	// DisposeAll has cleared the Registry its ticker keeps running until a further Dispose on a held handle.
+	// Meter returns a Meter for the given name, creating one if it does not yet exist. Dispose removes it.
 	Meter(name string) Meter
 
-	// Histogram returns a Histogram for the given name, creating one if it does not yet exist.
-	//
-	// Reference counted like Meter, so resolve it once and hold it. A Histogram holding excess references
-	// is not removed by Dispose: it stays in the Registry and keeps being reported until DisposeAll.
+	// RefCountedMeter returns a Meter for the given name, creating one if it does not yet exist, and takes
+	// a reference on it. Dispose releases one reference; the Meter is removed and stopped once the last is
+	// released. Call this once per owner and hold the result, since a call on a per-event path accumulates
+	// references that are never released and the Meter then outlives every owner.
+	RefCountedMeter(name string) Meter
+
+	// Histogram returns a Histogram for the given name, creating one if it does not yet exist. Dispose
+	// removes it.
 	Histogram(name string) Histogram
 
-	// Timer returns a Timer for the given name, creating one if it does not yet exist. Unlike Meter and
-	// Histogram this takes no reference, so it is safe to call repeatedly.
+	// RefCountedHistogram returns a Histogram for the given name, creating one if it does not yet exist,
+	// and takes a reference on it. Dispose releases one reference; the Histogram is removed once the last
+	// is released. Call this once per owner and hold the result, since a call on a per-event path
+	// accumulates references that are never released and the Histogram then outlives every owner.
+	RefCountedHistogram(name string) Histogram
+
+	// Timer returns a Timer for the given name, creating one if it does not yet exist. Dispose removes it.
 	Timer(name string) Timer
 
 	// EachMetric calls the given visitor function for each Metric in this registry
@@ -107,10 +113,9 @@ type Registry interface {
 
 	AcceptVisitor(visitor Visitor)
 
-	// DisposeAll clears the Registry, releasing one reference to each metric. A Meter or Histogram holding
-	// more than one reference is decremented rather than torn down; the final clear drops it from the
-	// Registry, but a Meter keeps ticking until Dispose is called on a held handle, which tears down any
-	// metric no longer in the Registry regardless of its count.
+	// DisposeAll tears down every metric and clears the Registry. Reference counted metrics are torn down
+	// regardless of outstanding references; handles still held afterwards refer to stopped metrics, and
+	// disposing them is harmless.
 	DisposeAll()
 }
 
@@ -141,10 +146,15 @@ func (registry *registryImpl) dispose(name string) {
 }
 
 func (registry *registryImpl) DisposeAll() {
-	registry.EachMetric(func(name string, metric Metric) {
-		metric.Dispose()
-	})
+	items := registry.metricMap.Items()
 	registry.metricMap.Clear()
+	for _, metric := range items {
+		if rc, ok := metric.(refCounted); ok {
+			rc.stop()
+		} else {
+			metric.Dispose()
+		}
+	}
 }
 
 func (registry *registryImpl) IsValidMetric(name string) bool {
@@ -218,7 +228,7 @@ func getOrCreateMetric[T Metric](registry *registryImpl, name string, newMetric 
 			var ok bool
 			result, ok = metric.(T)
 			if !ok {
-				panic(fmt.Errorf("metric '%v' already exists and is not a %T. It is a %T", name, new(T), metric))
+				panic(fmt.Errorf("metric '%v' already exists and is not a %v. It is a %T", name, reflect.TypeFor[T](), metric))
 			}
 			return result
 		}
@@ -274,51 +284,63 @@ func (registry *registryImpl) FuncGaugeFloat64(name string, f func() float64) Ga
 	})
 }
 
-func (registry *registryImpl) newMeter(name string) *meterImpl {
-	return &meterImpl{
-		Meter:    metrics.NewMeter(),
-		registry: registry,
-		name:     name,
-	}
-}
-
 func (registry *registryImpl) Meter(name string) Meter {
-	metric := registry.getRefCounted(name, func() refCounted {
-		return registry.newMeter(name)
+	return getOrCreateMetric(registry, name, func() *meterImpl {
+		return &meterImpl{
+			Meter: metrics.NewMeter(),
+			dispose: func() {
+				registry.dispose(name)
+			},
+		}
 	})
-
-	meter, ok := metric.(Meter)
-	if !ok {
-		panic(fmt.Errorf("metric '%v' already exists and is not a meter. It is a %v", name, reflect.TypeOf(metric).Name()))
-	}
-	return meter
 }
 
-func (registry *registryImpl) newHistogram(name string) *histogramImpl {
-	return &histogramImpl{
-		Histogram: metrics.NewHistogram(metrics.NewExpDecaySample(128, 0.015)),
-		registry:  registry,
-		name:      name,
-	}
+func (registry *registryImpl) RefCountedMeter(name string) Meter {
+	return getOrCreateRefCounted(registry, name, func() *refCountedMeterImpl {
+		return &refCountedMeterImpl{
+			Meter:    metrics.NewMeter(),
+			registry: registry,
+			name:     name,
+		}
+	})
+}
+
+func newHistogram() metrics.Histogram {
+	return metrics.NewHistogram(metrics.NewExpDecaySample(128, 0.015))
 }
 
 func (registry *registryImpl) Histogram(name string) Histogram {
-	metric := registry.getRefCounted(name, func() refCounted {
-		return registry.newHistogram(name)
+	return getOrCreateMetric(registry, name, func() *histogramImpl {
+		return &histogramImpl{
+			Histogram: newHistogram(),
+			dispose: func() {
+				registry.dispose(name)
+			},
+		}
 	})
-
-	histogram, ok := metric.(Histogram)
-	if !ok {
-		panic(fmt.Errorf("metric '%v' already exists and is not a histogram. It is a %v", name, reflect.TypeOf(metric).Name()))
-	}
-	return histogram
 }
 
-func (registry *registryImpl) getRefCounted(name string, factory func() refCounted) refCounted {
+func (registry *registryImpl) RefCountedHistogram(name string) Histogram {
+	return getOrCreateRefCounted(registry, name, func() *refCountedHistogramImpl {
+		return &refCountedHistogramImpl{
+			Histogram: newHistogram(),
+			registry:  registry,
+			name:      name,
+		}
+	})
+}
+
+// getOrCreateRefCounted resolves the metric under name, creating it with factory if absent, and takes a
+// reference on it. Panics if the name holds a metric that is not a T; the check runs before the
+// reference is taken, and outside the map callback since the shard lock is not released on panic.
+func getOrCreateRefCounted[T refCounted](registry *registryImpl, name string, factory func() T) T {
+	var mismatch Metric
 	metric := registry.metricMap.Upsert(name, nil, func(exist bool, valueInMap Metric, newValue Metric) Metric {
 		if exist {
-			if h, ok := valueInMap.(refCounted); ok {
-				h.IncrRefCount()
+			if v, ok := valueInMap.(T); ok {
+				v.IncrRefCount()
+			} else {
+				mismatch = valueInMap
 			}
 			return valueInMap
 		}
@@ -328,11 +350,10 @@ func (registry *registryImpl) getRefCounted(name string, factory func() refCount
 		return newVal
 	})
 
-	histogram, ok := metric.(refCounted)
-	if !ok {
-		panic(fmt.Errorf("metric '%v' already exists and is not an instance of refCouted. It is a %v", name, reflect.TypeOf(metric).Name()))
+	if mismatch != nil {
+		panic(fmt.Errorf("metric '%v' already exists and is not a %v. It is a %T", name, reflect.TypeFor[T](), mismatch))
 	}
-	return histogram
+	return metric.(T)
 }
 
 func (registry *registryImpl) disposeRefCounted(metric refCounted) {
@@ -424,7 +445,11 @@ func (registry *registryImpl) AcceptVisitor(visitor Visitor) {
 			visitor.VisitGaugeFloat64(name, metric)
 		case *meterImpl:
 			visitor.VisitMeter(name, metric)
+		case *refCountedMeterImpl:
+			visitor.VisitMeter(name, metric)
 		case *histogramImpl:
+			visitor.VisitHistogram(name, metric.CreateSnapshot())
+		case *refCountedHistogramImpl:
 			visitor.VisitHistogram(name, metric.CreateSnapshot())
 		case *timerImpl:
 			visitor.VisitTimer(name, metric.CreateSnapshot())

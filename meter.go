@@ -34,19 +34,29 @@ type Meter interface {
 
 type meterImpl struct {
 	metrics.Meter
+	dispose func()
+}
+
+func (self *meterImpl) Dispose() {
+	self.Stop()
+	self.dispose()
+}
+
+type refCountedMeterImpl struct {
+	metrics.Meter
 	name     string
 	registry *registryImpl
 	concurrenz.RefCount
 }
 
-func (self *meterImpl) Name() string {
+func (self *refCountedMeterImpl) Name() string {
 	return self.name
 }
 
-func (self *meterImpl) Dispose() {
+func (self *refCountedMeterImpl) Dispose() {
 	self.registry.disposeRefCounted(self)
 }
 
-func (self *meterImpl) stop() {
+func (self *refCountedMeterImpl) stop() {
 	self.Stop()
 }
