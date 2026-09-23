@@ -41,37 +41,46 @@ type Histogram interface {
 
 type histogramImpl struct {
 	metrics.Histogram
-	name     string
-	registry *registryImpl
-	concurrenz.RefCount
-}
-
-func (self *histogramImpl) Name() string {
-	return self.name
+	dispose func()
 }
 
 func (self *histogramImpl) Dispose() {
-	self.registry.disposeRefCounted(self)
-}
-
-func (self *histogramImpl) stop() {
-	// no resources to cleanup
+	self.dispose()
 }
 
 func (self *histogramImpl) CreateSnapshot() Histogram {
 	return &histogramSnapshot{
 		Histogram: self.Snapshot(),
-		name:      self.name,
+	}
+}
+
+type refCountedHistogramImpl struct {
+	metrics.Histogram
+	name     string
+	registry *registryImpl
+	concurrenz.RefCount
+}
+
+func (self *refCountedHistogramImpl) Name() string {
+	return self.name
+}
+
+func (self *refCountedHistogramImpl) Dispose() {
+	self.registry.disposeRefCounted(self)
+}
+
+func (self *refCountedHistogramImpl) stop() {
+	// no resources to cleanup
+}
+
+func (self *refCountedHistogramImpl) CreateSnapshot() Histogram {
+	return &histogramSnapshot{
+		Histogram: self.Snapshot(),
 	}
 }
 
 type histogramSnapshot struct {
 	metrics.Histogram
-	name string
-}
-
-func (self *histogramSnapshot) Name() string {
-	return self.name
 }
 
 func (self *histogramSnapshot) Dispose() {}

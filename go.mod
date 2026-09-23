@@ -1,4 +1,4 @@
-module github.com/openziti/metrics/v2
+module github.com/openziti/metrics/v3
 
 go 1.25.0
 
