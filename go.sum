@@ -1,5 +1,5 @@
-github.com/openziti/foundation/v2 v2.0.100 h1:Q9DzyZYp7/QF0No2CDadcmhWpp1FqOvxwhNFENk6GrU=
-github.com/openziti/foundation/v2 v2.0.100/go.mod h1:voePbn/hwFypw6Ogr2k5sl/g3ZiHWdHO202uHBNpsAQ=
+github.com/openziti/foundation/v2 v2.0.105 h1:ppK+JKlph6dkmu9+VTaxsUYvwxA0gP3jO9mUk1Rh2AQ=
+github.com/openziti/foundation/v2 v2.0.105/go.mod h1:3EyQT6VRe3q14qTUwBYiTZlunyaGsQD7Em+IuC9B4hc=
 github.com/orcaman/concurrent-map/v2 v2.0.1 h1:jOJ5Pg2w1oeB6PeDurIYf6k9PQ+aTITr/6lP/L/zp6c=
 github.com/orcaman/concurrent-map/v2 v2.0.1/go.mod h1:9Eq3TG2oBe5FirmYWQfYO5iH1q0Jv47PLaNK++uCdOM=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
